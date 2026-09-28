@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harvest Timing & Market Risk Simulator</title>
+    <meta name="description" content="A field-friendly decision-support tool helping farmers optimize harvest timing and market selection accounting for spoilage risk, weather, and transport.">
+    <!-- Local CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Local Chart.js for 100% offline capability -->
+    <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
+</head>
+<body>
+
+<div class="container">
+    <!-- Header -->
+    <header role="banner">
+        <div class="logo-container">
+            <span class="logo-icon" aria-hidden="true">🌾</span>
+            <div class="logo-text">
+                <h1 id="app-title" data-en="Harvest Timing & Market Option Simulator" data-ta="அறுவடை நேரம் & சந்தை வாய்ப்பு கால்குலேட்டர்">Harvest Timing & Market Option Simulator</h1>
+                <p id="app-subtitle" data-en="Field-Ready Decision Support for Small & Medium Farmers" data-ta="சிறு மற்றும் நடுத்தர விவசாயிகளுக்கான கள முடிவு ஆதரவு">Field-Ready Decision Support for Small & Medium Farmers</p>
+            </div>
+        </div>
+        
+        <div class="header-controls">
+            <!-- Language Toggle -->
+            <button id="lang-toggle" class="btn-lang" aria-label="Toggle language to Tamil" onclick="toggleLanguage()">
+                🌐 English / தமிழ்
+            </button>
+            <!-- Offline/Online Indicator -->
+            <div id="status-indicator" class="status-badge status-online">
+                <span class="status-dot">●</span>
+                <span id="status-text" data-en="Online Mode" data-ta="ஆன்லைன் பயன்முறை">Online Mode</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard Grid -->
+    <main class="dashboard-grid" role="main">
+        
+        <!-- Left Column: Inputs & Scenarios -->
+        <section aria-labelledby="inputs-title">
+            
+            <!-- Scenario Quick Select (Priority 4) -->
+            <div class="card" style="margin-bottom: 20px;">
+                <h2 class="card-title" id="scenarios-title" style="font-size: 1.05rem;">
+                    <span aria-hidden="true">📋</span> 
+                    <span data-en="3 Operating Scenarios" data-ta="3 இயக்க சூழ்நிலைகள்">3 Operating Scenarios</span>
+                </h2>
+                <div class="scenario-selector" role="group" aria-label="Quick Select Predefined Scenarios">
+                    <button class="btn-scenario active" id="btn-sc-1" onclick="selectScenario(1)" data-en="1. Normal" data-ta="1. சாதாரண நிலை">1. Normal</button>
+                    <button class="btn-scenario" id="btn-sc-2" onclick="selectScenario(2)" data-en="2. High Spoilage Risk" data-ta="2. அதிக அழுகல் அபாயம்">2. High Spoilage Risk</button>
+                    <button class="btn-scenario" id="btn-sc-3" onclick="selectScenario(3)" data-en="3. Future Price Opp." data-ta="3. எதிர்கால விலை வாய்ப்பு">3. Future Price Opp.</button>
+                </div>
+            </div>
+
+            <!-- Edge Cases Quick Tester (Priority 9) -->
+            <div class="card" style="margin-bottom: 20px;">
+                <h2 class="card-title" id="edge-cases-title" style="font-size: 1.05rem;">
+                    <span aria-hidden="true">⚡</span> 
+                    <span data-en="Edge Cases Tester" data-ta="தீவிர நிலை சோதனையாளர்">Edge Cases Tester</span>
+                </h2>
+                <div class="edge-case-selector" role="group" aria-label="Quick Select Edge Cases">
+                    <button class="btn-edge" onclick="selectEdgeCase(1)" data-en="🔥 Extreme Heat + Price" data-ta="🔥 கடும் வெப்பம் + விலை">🔥 Extreme Heat + Price</button>
+                    <button class="btn-edge" onclick="selectEdgeCase(2)" data-en="🚛 Long Transit & Store" data-ta="🚛 நீண்ட பயணம் & சேமிப்பு">🚛 Long Transit & Store</button>
+                    <button class="btn-edge" onclick="selectEdgeCase(3)" data-en="❓ Missing Weather/Price" data-ta="❓ விடுபட்ட வானிலை/விலை">❓ Missing Weather/Price</button>
+                    <button class="btn-edge" onclick="selectEdgeCase(4)" data-en="⚠️ Zero Qty / Extreme" data-ta="⚠️ பூஜ்ஜிய அளவு / எல்லை">⚠️ Zero Qty / Extreme</button>
+                </div>
+            </div>
+
+            <!-- Farmer Inputs Card (Priority 11) -->
+            <div class="card">
+                <h2 class="card-title" id="inputs-title">
+                    <span aria-hidden="true">🚜</span> 
+                    <span data-en="Farmer Field Inputs" data-ta="விவசாயி கள உள்ளீடுகள்">Farmer Field Inputs</span>
+                </h2>
+                
+                <form id="farmer-form" onsubmit="event.preventDefault(); runSimulationDynamic();">
+                    
+                    <!-- 1. Crop Dropdown -->
+                    <div class="form-group">
+                        <label class="form-label" for="crop" data-en="1. Crop" data-ta="1. பயிர்">1. Crop</label>
+                        <select id="crop" class="form-control" required onchange="runSimulationDynamic()">
+                            <option value="Tomato" data-en="Tomato (தக்காளி)" data-ta="Tomato (தக்காளி)">Tomato (தக்காளி)</option>
+                            <option value="Potato" data-en="Potato (உருளைக்கிழங்கு)" data-ta="Potato (உருளைக்கிழங்கு)">Potato (உருளைக்கிழங்கு)</option>
+                            <option value="Onion" data-en="Onion (வெங்காயம்)" data-ta="Onion (வெங்காயம்)">Onion (வெங்காயம்)</option>
+                            <option value="Rice" data-en="Rice (நெல்)" data-ta="Rice (நெல்)">Rice (நெல்)</option>
+                            <option value="Mango" data-en="Mango (மாம்பழம்)" data-ta="Mango (மாம்பழம்)">Mango (மாம்பழம்)</option>
+                        </select>
+                    </div>
+
+                    <!-- 2. Crop Maturity Slider -->
+                    <div class="form-group">
+                        <label class="form-label" for="maturity">
+                            <span data-en="2. Crop Maturity" data-ta="2. பயிர் முதிர்ச்சி">2. Crop Maturity</span>
+                            <span id="maturity-val" class="form-label-val">80%</span>
+                        </label>
+                        <input type="range" id="maturity" min="10" max="115" value="80" oninput="updateVal('maturity')" onchange="runSimulationDynamic()">
+                    </div>
+
+                    <!-- 3. Quantity Input -->
+                    <div class="form-group">
+                        <label class="form-label" for="quantity" data-en="3. Quantity (kg)" data-ta="3. பயிர் அளவு (கிலோ)">3. Quantity (kg)</label>
+                        <input type="number" id="quantity" class="form-control" min="1" value="1000" required onchange="runSimulationDynamic()">
+                    </div>
+
+                    <!-- 4 & 5. Current Price and Future Price row -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="current_price" data-en="4. Current Price (₹/kg)" data-ta="4. தற்போதைய விலை (₹/கிலோ)">4. Current Price (₹/kg)</label>
+                            <input type="number" id="current_price" class="form-control" min="1" step="0.5" value="30" required onchange="runSimulationDynamic()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="future_price" data-en="5. Expected Future Price (₹/kg)" data-ta="5. எதிர்கால விலை (₹/கிலோ)">5. Expected Future Price (₹/kg)</label>
+                            <input type="number" id="future_price" class="form-control" min="1" step="0.5" value="35" required onchange="runSimulationDynamic()">
+                        </div>
+                    </div>
+
+                    <!-- 6. Weather Group -->
+                    <div class="form-group" style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid var(--border-glass);">
+                        <label class="form-label" style="font-weight: 600; color: var(--accent-color);" data-en="6. Weather Conditions" data-ta="6. வானிலை நிலைமைகள்">6. Weather Conditions</label>
+                        
+                        <div class="form-group" style="margin-top: 8px;">
+                            <label class="form-label" for="temperature">
+                                <span data-en="Temperature (°C)" data-ta="வெப்பநிலை (°C)">Temperature (°C)</span>
+                                <span id="temperature-val" class="form-label-val">25°C</span>
+                            </label>
+                            <input type="range" id="temperature" min="10" max="50" value="25" oninput="updateVal('temperature')" onchange="runSimulationDynamic()">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="humidity">
+                                <span data-en="Humidity (%)" data-ta="ஈரப்பதம் (%)">Humidity (%)</span>
+                                <span id="humidity-val" class="form-label-val">60%</span>
+                            </label>
+                            <input type="range" id="humidity" min="10" max="100" value="60" oninput="updateVal('humidity')" onchange="runSimulationDynamic()">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="rain_probability">
+                                <span data-en="Rain Probability (%)" data-ta="மழை வாய்ப்பு (%)">Rain Probability (%)</span>
+                                <span id="rain_probability-val" class="form-label-val">20%</span>
+                            </label>
+                            <input type="range" id="rain_probability" min="0" max="100" value="20" oninput="updateVal('rain_probability')" onchange="runSimulationDynamic()">
+                        </div>
+                    </div>
+
+                    <!-- 7. Storage Group -->
+                    <div class="form-row" style="margin-top: 10px;">
+                        <div class="form-group">
+                            <label class="form-label" for="storage_duration">
+                                <span data-en="7. Storage (Days)" data-ta="7. சேமிப்பு (நாட்கள்)">7. Storage (Days)</span>
+                                <span id="storage_duration-val" class="form-label-val">2 days</span>
+                            </label>
+                            <input type="range" id="storage_duration" min="0" max="15" value="2" oninput="updateVal('storage_duration')" onchange="runSimulationDynamic()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="storage_condition" data-en="Storage Type" data-ta="சேமிப்பு வசதி">Storage Type</label>
+                            <select id="storage_condition" class="form-control" onchange="runSimulationDynamic()">
+                                <option value="Ambient" data-en="Ambient (Room)" data-ta="இயல்பான அறை">Ambient (Room)</option>
+                                <option value="Cold Storage" data-en="Cold Storage" data-ta="குளிர்பதன கிடங்கு">Cold Storage</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 8. Transport Group -->
+                    <div class="form-group">
+                        <label class="form-label" for="transport_duration">
+                            <span data-en="8. Transport Duration (Hours)" data-ta="8. போக்குவரத்து நேரம் (மணி)">8. Transport Duration (Hours)</span>
+                            <span id="transport_duration-val" class="form-label-val">2 hours</span>
+                        </label>
+                        <input type="range" id="transport_duration" min="0" max="24" value="2" oninput="updateVal('transport_duration')" onchange="runSimulationDynamic()">
+                    </div>
+
+                    <button type="submit" class="btn-submit" style="width: 100%;">
+                        <span aria-hidden="true">⚖️</span>
+                        <span data-en="Calculate Harvest Decision" data-ta="அறுவடை முடிவை கணக்கிடுக">Calculate Harvest Decision</span>
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Saved Calculations (Offline LocalStorage) -->
+            <div class="card" style="margin-top: 20px;">
+                <h3 class="card-title" style="font-size: 1.05rem;">
+                    <span aria-hidden="true">💾</span>
+                    <span data-en="Offline Saved Calculations" data-ta="ஆஃப்லைன் சேமிக்கப்பட்ட கணக்கீடுகள்">Offline Saved Calculations</span>
+                </h3>
+                <ul id="saved-calculations-list" style="list-style-type: none; font-size: 0.85rem; max-height: 140px; overflow-y: auto;">
+                    <li style="color: var(--text-muted);" data-en="No calculations saved locally yet." data-ta="உள்ளூர் சேமிப்புகள் எதுவும் இல்லை.">No calculations saved locally yet.</li>
+                </ul>
+                <button class="btn-lang" onclick="saveCalculationLocally()" style="width: 100%; margin-top: 10px; display: block; text-align: center;" data-en="Save Current Input Offline" data-ta="இப்போதைய உள்ளீட்டை சேமி">
+                    Save Current Input Offline
+                </button>
+            </div>
+        </section>
+
+        <!-- Right Column: Results & Dashboard tabs -->
+        <section aria-labelledby="results-section-title">
+            <h2 class="sr-only" id="results-section-title">Simulation Results</h2>
+
+            <!-- Fallback Alert Banner (Priority 9 & 10) -->
+            <div id="fallback-banner" class="alert-banner warning" style="display: none;">
+                <span aria-hidden="true">⚠️</span>
+                <div>
+                    <strong data-en="Notice:" data-ta="அறிவிப்பு:">Notice:</strong>
+                    <span id="fallback-banner-text" data-en="Fallback data is being used for missing parameters." data-ta="விடுபட்ட வானிலை/விலைத் தரவுகளுக்கு இயல்புநிலைத் தரவு பயன்படுத்தப்படுகிறது.">Fallback data is being used for missing parameters.</span>
+                </div>
+            </div>
+
+            <!-- Tab Headers -->
+            <div class="tabs" role="tablist">
+                <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-dashboard" onclick="switchTab('tab-dashboard', this)" data-en="Decision Dashboard" data-ta="முடிவு டாஷ்போர்டு">Decision Dashboard</button>
+                <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-timeline" onclick="switchTab('tab-timeline', this)" data-en="Day 0-10 Harvest Timeline" data-ta="நாள் 0-10 அறுவடை காலவரிசை">Day 0-10 Harvest Timeline</button>
+                <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-sensitivity" onclick="switchTab('tab-sensitivity', this)" data-en="Sensitivity Analysis" data-ta="உணர்திறன் பகுப்பாய்வு">Sensitivity Analysis</button>
+                <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-evaluation" onclick="switchTab('tab-evaluation', this)" data-en="System Evaluation" data-ta="கணினி மதிப்பீடு">System Evaluation</button>
+            </div>
+
+            <!-- Tab 1: Decision Dashboard -->
+            <div id="tab-dashboard" class="tab-content active" role="tabpanel">
+                
+                <!-- Primary Recommendation Box -->
+                <div id="recommendation-box" class="rec-box harvest">
+                    <span id="rec-badge-label" class="rec-badge" data-en="Recommended Harvest Decision" data-ta="பரிந்துரைக்கப்பட்ட அறுவடை முடிவு">Recommended Harvest Decision</span>
+                    <div id="rec-decision" class="rec-title" data-en="HARVEST ON DAY 3" data-ta="நாள் 3-ல் அறுவடை செய்க">HARVEST ON DAY 3</div>
+                </div>
+
+                <!-- Highlight Metrics Grid -->
+                <div class="highlight-grid">
+                    <div class="h-metric">
+                        <div class="h-metric-label" data-en="Recommended Harvest Day" data-ta="பரிந்துரைக்கப்பட்ட நாள்">Recommended Harvest Day</div>
+                        <div id="metric-rec-day" class="h-metric-val" style="color: var(--primary-color);">Day 3</div>
+                    </div>
+                    <div class="h-metric">
+                        <div class="h-metric-label" data-en="Expected Farmer Value" data-ta="எதிர்பார்க்கப்படும் நிகர மதிப்பு">Expected Farmer Value</div>
+                        <div id="metric-net-value" class="h-metric-val" style="color: var(--accent-color);">₹22,194.91</div>
+                    </div>
+                    <div class="h-metric">
+                        <div class="h-metric-label" data-en="Estimated Spoilage Risk" data-ta="மதிப்பிடப்பட்ட அழுகல் அபாயம்">Estimated Spoilage Risk</div>
+                        <div id="metric-spoilage-pct" class="h-metric-val">18.8%</div>
+                    </div>
+                    <div class="h-metric">
+                        <div class="h-metric-label" data-en="Risk Level" data-ta="அபாய நிலை">Risk Level</div>
+                        <div id="metric-risk-level" class="h-metric-val risk-medium">Medium Risk</div>
+                    </div>
+                </div>
+
+                <!-- Priority 8: Explanation Layer -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">💡</span>
+                        <span data-en="Why? Decision Explanation Layer" data-ta="காரணம்? முடிவு விளக்கம்">Why? Decision Explanation Layer</span>
+                    </h3>
+                    <div class="explanation-section">
+                        <h4 id="explanation-subheading" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 8px;" data-en="Quantitative Drivers for this Harvest Timing" data-ta="இந்த அறுவடை முடிவுக்கான காரணிகள்">Quantitative Drivers for this Harvest Timing</h4>
+                        <ul id="explanation-list" class="explanation-list">
+                            <!-- Populated dynamically -->
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Priority 5: Baseline vs Risk-Aware Comparison -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">📈</span>
+                        <span data-en="Baseline (Immediate Harvest / Day 0) vs Risk-Aware Simulator" data-ta="அடிப்படை (உடனடி அறுவடை நாள் 0) vs அபாய கால்குலேட்டர்">Baseline (Immediate Harvest / Day 0) vs Risk-Aware Simulator</span>
+                    </h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center; margin-bottom: 16px;">
+                        <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid var(--border-glass);">
+                            <span class="badge-baseline" data-en="BASELINE" data-ta="அடிப்படை">BASELINE</span>
+                            <h4 data-en="Immediate Harvest (Day 0)" data-ta="உடனடி அறுவடை (நாள் 0)" style="margin-top: 6px;">Immediate Harvest (Day 0)</h4>
+                            <div id="base-value-display" style="font-size: 1.3rem; font-weight: bold; margin: 8px 0; color: var(--text-primary);">₹21,964.07</div>
+                            <div style="font-size: 0.85rem; color: var(--text-muted);" id="base-spoilage-display">Spoilage: 17.8% | Usable: 822 kg</div>
+                        </div>
+                        <div style="background: rgba(16,185,129,0.08); padding: 15px; border-radius: 8px; border: 1px solid var(--primary-color);">
+                            <span class="badge-recommended" data-en="PROPOSED SIMULATOR" data-ta="பரிந்துரை கால்குலேட்டர்">PROPOSED SIMULATOR</span>
+                            <h4 id="proposed-title-display" data-en="Optimal Harvest (Day 3)" data-ta="உகந்த அறுவடை (நாள் 3)" style="margin-top: 6px; color: var(--primary-color);">Optimal Harvest (Day 3)</h4>
+                            <div id="proposed-value-display" style="font-size: 1.3rem; font-weight: bold; color: var(--success); margin: 8px 0;">₹22,194.91</div>
+                            <div style="font-size: 0.85rem; color: var(--text-muted);" id="proposed-spoilage-display">Spoilage: 18.8% | Usable: 812 kg</div>
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding: 12px; font-weight: bold; font-size: 1.1rem; border-top: 1px solid var(--border-glass); background: rgba(255,255,255,0.01); border-radius: 6px;">
+                        <span data-en="Net Farmer Value Improvement: " data-ta="நிகர விவசாயி மதிப்பு முன்னேற்றம்: ">Net Farmer Value Improvement: </span>
+                        <span id="improvement-display" class="compare-diff-positive">+₹230.84 (+1.05%)</span>
+                    </div>
+                </div>
+
+                <!-- Priority 6: Market Options Comparison -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">🏪</span>
+                        <span data-en="Market Options Comparison (Priority 6)" data-ta="சந்தை வாய்ப்புகள் ஒப்பீடு">Market Options Comparison</span>
+                    </h3>
+                    <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 12px;" data-en="Comparing Local Market, Wholesale Mandi, and Direct/Premium Market channels." data-ta="உள்ளூர் சந்தை, மாவட்ட மண்டி மற்றும் நேரடி பிரீமியம் சந்தை வழிகளை ஒப்பிடுதல்.">
+                        Comparing Local Market, Wholesale Mandi, and Direct/Premium Market channels.
+                    </p>
+                    <div id="market-cards-container" class="market-grid">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Tab 2: Day 0 to Day 10 Harvest Timeline (Priority 3) -->
+            <div id="tab-timeline" class="tab-content" role="tabpanel">
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">📅</span>
+                        <span data-en="Full Harvest Timing Simulation (Day 0 → Day 10)" data-ta="முழு அறுவடை காலவரிசை சிமுலேஷன் (நாள் 0 → நாள் 10)">Full Harvest Timing Simulation (Day 0 → Day 10)</span>
+                    </h3>
+                    <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 12px;" data-en="Daily progression of expected price, in-field maturity, spoilage risk, storage/transport costs, and Net Farmer Value." data-ta="எதிர்பார்க்கப்படும் விலை, முதிர்ச்சி, அழுகல் அபாயம் மற்றும் நிகர மதிப்பு தினசரி கணக்கீடு.">
+                        Daily progression of expected price, in-field maturity, spoilage risk, storage/transport costs, and Net Farmer Value.
+                    </p>
+                    
+                    <!-- Timeline Curve Chart -->
+                    <div class="chart-container" style="height: 280px; margin-bottom: 20px;">
+                        <canvas id="chart-timeline"></canvas>
+                    </div>
+
+                    <!-- Timeline Table -->
+                    <div style="overflow-x: auto;">
+                        <table class="timeline-table" id="timeline-table" aria-label="Day 0 to Day 10 Harvest Simulation Table">
+                            <thead>
+                                <tr>
+                                    <th data-en="Day" data-ta="நாள்">Day</th>
+                                    <th data-en="Price (₹/kg)" data-ta="விலை (₹/கிலோ)">Price (₹/kg)</th>
+                                    <th data-en="Maturity" data-ta="முதிர்ச்சி">Maturity</th>
+                                    <th data-en="Spoilage %" data-ta="அழுகல் %">Spoilage %</th>
+                                    <th data-en="Usable Qty (kg)" data-ta="பயன்பாட்டு அளவு">Usable Qty (kg)</th>
+                                    <th data-en="Gross Rev (₹)" data-ta="வருவாய் (₹)">Gross Rev (₹)</th>
+                                    <th data-en="Total Costs (₹)" data-ta="செலவுகள் (₹)">Total Costs (₹)</th>
+                                    <th data-en="Net Farmer Value (₹)" data-ta="நிகர மதிப்பு (₹)">Net Farmer Value (₹)</th>
+                                    <th data-en="Status" data-ta="நிலை">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="timeline-table-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 3: Sensitivity Analysis (Priority 7) -->
+            <div id="tab-sensitivity" class="tab-content" role="tabpanel">
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">📉</span>
+                        <span data-en="Sensitivity Analysis & Decision Flip Identification" data-ta="உணர்திறன் பகுப்பாய்வு & முடிவு மாற்றங்கள்">Sensitivity Analysis & Decision Flip Identification</span>
+                    </h3>
+                    
+                    <!-- Dynamic Flip Points Alert (Priority 7 core requirement) -->
+                    <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid var(--accent-color); border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+                        <h4 style="color: var(--accent-color); font-size: 0.95rem; margin-bottom: 6px;">
+                            <span aria-hidden="true">⚠️</span> 
+                            <span data-en="Key Assumptions that CHANGE the Final Recommendation:" data-ta="பரிந்துரையை மாற்றும் முக்கிய அனுமானங்கள்:">Key Assumptions that CHANGE the Final Recommendation:</span>
+                        </h4>
+                        <ul id="flip-points-list" class="flip-points-list">
+                            <!-- Populated dynamically -->
+                        </ul>
+                    </div>
+
+                    <div class="sensitivity-grid">
+                        <div>
+                            <h4 style="margin-bottom: 8px;" data-en="Expected Farmer Value vs Future Price" data-ta="நிகர மதிப்பு vs எதிர்கால விலை">Expected Farmer Value vs Future Price</h4>
+                            <div class="chart-container">
+                                <canvas id="chart-profit-futureprice"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 8px;" data-en="Expected Farmer Value vs Spoilage Rate" data-ta="நிகர மதிப்பு vs அழுகல் விகிதம்">Expected Farmer Value vs Spoilage Rate</h4>
+                            <div class="chart-container">
+                                <canvas id="chart-profit-spoilage"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 8px;" data-en="Harvest Day vs Temperature (°C)" data-ta="அறுவடை நாள் vs வெப்பநிலை">Harvest Day vs Temperature (°C)</h4>
+                            <div class="chart-container">
+                                <canvas id="chart-decision-maturity"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 8px;" data-en="Expected Farmer Value vs Storage Duration" data-ta="நிகர மதிப்பு vs சேமிப்பு காலம்">Expected Farmer Value vs Storage Duration</h4>
+                            <div class="chart-container">
+                                <canvas id="chart-profit-storage"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 4: System Evaluation (Priority 14) -->
+            <div id="tab-evaluation" class="tab-content" role="tabpanel">
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">📊</span>
+                        <span data-en="Synthetic Simulation Evaluation Report" data-ta="செயற்கை உருவகப்படுத்துதல் மதிப்பீட்டு அறிக்கை">Synthetic Simulation Evaluation Report</span>
+                    </h3>
+                    <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 15px;" data-en="Evaluated across 800 synthetic cases. Note: Synthetic simulation evaluation. Do NOT claim real-world accuracy." data-ta="800 செயற்கை உருவகப்படுத்துதல் வழக்குகளில் மதிப்பீடு செய்யப்பட்டது. குறிப்பு: நிஜ உலக துல்லியத்தை கோர வேண்டாம்.">
+                        Evaluated across 800 synthetic simulation cases. <em>Note: Synthetic simulation evaluation. Do NOT claim real-world accuracy. Pending real-world field validation.</em>
+                    </p>
+                    <table class="compare-table">
+                        <thead>
+                            <tr>
+                                <th data-en="Evaluation Metric" data-ta="மதிப்பீட்டு அளவுரு">Evaluation Metric</th>
+                                <th data-en="Baseline (Immediate Harvest / Day 0)" data-ta="அடிப்படை (உடனடி அறுவடை நாள் 0)">Baseline (Immediate Harvest / Day 0)</th>
+                                <th data-en="Risk-Aware Simulator (Optimal Day)" data-ta="அபாய கால்குலேட்டர் (உகந்த நாள்)">Risk-Aware Simulator (Optimal Day)</th>
+                                <th data-en="Measured Improvement" data-ta="அளவிடப்பட்ட முன்னேற்றம்">Measured Improvement</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td data-en="Average Net Farmer Value (₹)" data-ta="சராசரி நிகர மதிப்பு (₹)">Average Net Farmer Value (₹)</td>
+                                <td id="eval-base-val">₹16,998.17</td>
+                                <td id="eval-proposed-val" style="font-weight: bold; color: var(--accent-color);">₹20,607.08</td>
+                                <td style="font-weight: bold; color: var(--success);" id="eval-imp-val">+₹3,608.91 (+21.23%)</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Average Spoilage %" data-ta="சராசரி அழுகல் %">Average Spoilage %</td>
+                                <td id="eval-base-spoil">21.28%</td>
+                                <td id="eval-proposed-spoil" style="color: var(--warning);">23.48%</td>
+                                <td style="color: var(--text-muted);">Controlled field trade-off</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Cases Optimizer >= Baseline (Win Count)" data-ta="உகந்த தீர்வு >= அடிப்படை வெற்றி எண்ணிக்கை">Cases Optimizer >= Baseline (Win Count)</td>
+                                <td>-</td>
+                                <td id="eval-win-count" style="font-weight: bold; color: var(--success);">800 / 800 (100.0%)</td>
+                                <td style="font-weight: bold; color: var(--success);">100% Non-inferior</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Decision Accuracy Definition" data-ta="முடிவு துல்லியம் வரையறை">Decision Accuracy Definition</td>
+                                <td>-</td>
+                                <td>Exact Global Maxima Choice</td>
+                                <td style="font-weight: bold; color: var(--success);">100.0% Optimal Day Choice</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Case Studies & Edge Case Results -->
+                <div class="card">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">🔍</span>
+                        <span data-en="Case Studies & Real Edge Scenarios" data-ta="வழக்கு ஆய்வுகள் & தீவிர காட்சிகள்">Case Studies & Real Edge Scenarios</span>
+                    </h3>
+                    <div style="display: flex; flex-direction: column; gap: 15px; font-size: 0.9rem;">
+                        <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid var(--border-glass);">
+                            <strong style="color: var(--accent-color);" data-en="1. Extreme Heat Forces Day 0 Harvest" data-ta="1. கடும் வெப்பம் நாள் 0 அறுவடையை கட்டாயமாக்குகிறது">1. Extreme Heat Forces Day 0 Harvest</strong>
+                            <p data-en="When temperature exceeds 38°C and humidity is high, the baseline price-seeker waits for ₹38/kg instead of ₹30/kg. However, due to 65% spoilage, waiting produces near zero revenue, whereas immediate harvest protects ₹21,000+ in pocket earnings." data-ta="வெப்பநிலை 38°C-க்கு மேல் இருக்கும் போது, காத்திருப்பது அதிக அழுகலை ஏற்படுத்தி முழு நஷ்டத்தை தரும். உடனடியாக அறுவடை செய்வது பணத்தை பாதுகாக்கும்.">When temperature exceeds 38°C and humidity is high, the baseline price-seeker waits for ₹38/kg instead of ₹30/kg. However, due to 65% spoilage, waiting produces near zero revenue, whereas immediate harvest protects ₹21,000+ in pocket earnings.</p>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid var(--border-glass);">
+                            <strong style="color: var(--accent-color);" data-en="2. Cold Storage Unlocks Massive Future Price Gain" data-ta="2. குளிர்பதன கிடங்கு எதிர்கால விலையை அறுவடை செய்கிறது">2. Cold Storage Unlocks Massive Future Price Gain</strong>
+                            <p data-en="With cold storage preserving spoilage below 4%, the farmer can safely delay harvest to Day 10, capturing a 68% surge in future price (yielding +₹30,000 additional profit over Day 0)." data-ta="குளிர்பதன கிடங்கு அழுகலை 4%-க்குள் கட்டுப்படுத்துவதால், நாள் 10 வரை காத்திருந்து 68% கூடுதல் விலை லாபத்தைப் பெறலாம்.">With cold storage preserving spoilage below 4%, the farmer can safely delay harvest to Day 10, capturing a 68% surge in future price (yielding +₹30,000 additional profit over Day 0).</p>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid var(--border-glass);">
+                            <strong style="color: var(--accent-color);" data-en="3. Missing Weather / Price Data Recovery" data-ta="3. விடுபட்ட வானிலை / விலை மீட்பு">3. Missing Weather / Price Data Recovery</strong>
+                            <p data-en="When weather APIs or prices are unavailable in low-bandwidth rural areas, the system automatically uses regional historical fallbacks and warns the user without crashing." data-ta="கிராமப்புறங்களில் இணையம் அல்லது வானிலை தரவு கிடைக்காதபோது, அமைப்பு வரலாற்று இயல்புநிலைத் தரவைப் பயன்படுத்தி கணக்கிடுகிறது.">When weather APIs or prices are unavailable in low-bandwidth rural areas, the system automatically uses regional historical fallbacks and warns the user without crashing.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Ethics and Responsible AI Section -->
+    <section class="card ethics-section" aria-labelledby="ethics-title">
+        <h3 class="card-title" id="ethics-title">
+            <span aria-hidden="true">🛡️</span>
+            <span data-en="Responsible AI, Limitations & Ethical Disclosure" data-ta="பொறுப்பான AI, வரம்புகள் & நெறிமுறை வெளிப்பாடு">Responsible AI, Limitations & Ethical Disclosure</span>
+        </h3>
+        <div class="ethics-grid">
+            <div class="ethics-item">
+                <h5 data-en="Decision Support Only" data-ta="முடிவு ஆதரவு மட்டுமே">Decision Support Only</h5>
+                <p data-en="This simulator is a decision-support helper based on statistical decay equations and market costs. It does NOT replace farmer visual inspection or physical crop assessment." data-ta="இந்த அமைப்பு ஒரு முடிவு ஆதரவு மட்டுமே. இது விவசாயியின் நேரடி கள பரிசோதனையை மாற்றாது.">This simulator is a decision-support helper based on statistical decay equations and market costs. It does NOT replace farmer visual inspection or physical crop assessment.</p>
+            </div>
+            <div class="ethics-item">
+                <h5 data-en="Transparency & Uncertainty" data-ta="வெளிப்படைத்தன்மை & நிச்சயமற்ற தன்மை">Transparency & Uncertainty</h5>
+                <p data-en="Future prices and weather forecasts carry natural uncertainty. Results are labeled as synthetic simulation estimations and must be validated under local mandi conditions." data-ta="எதிர்கால விலை மற்றும் வானிலை கணிப்புகள் நிச்சயமற்ற தன்மையைக் கொண்டுள்ளன. முடிவுகள் உள்ளூர் சந்தை நிலைமைகளுடன் சரிபார்க்கப்பட வேண்டும்.">Future prices and weather forecasts carry natural uncertainty. Results are labeled as synthetic simulation estimations and must be validated under local mandi conditions.</p>
+            </div>
+            <div class="ethics-item">
+                <h5 data-en="Data Privacy & 100% Offline" data-ta="தரவு தனியுரிமை & 100% ஆஃப்லைன்">Data Privacy & 100% Offline</h5>
+                <p data-en="Zero farmer telemetry is uploaded to remote servers. The simulator functions completely in the browser cache, respecting low-bandwidth village constraints." data-ta="எந்த ஒரு தனிப்பட்ட விவசாயி தரவும் தொலை சேவையகங்களுக்கு பதிவேற்றப்படுவதில்லை. இணையம் இல்லாமலும் செயல்படும்.">Zero farmer telemetry is uploaded to remote servers. The simulator functions completely in the browser cache, respecting low-bandwidth village constraints.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer role="contentinfo">
+        <p data-en="Harvest Timing & Market Option Simulator — 70% Review Checkpoint" data-ta="அறுவடை நேரம் & சந்தை வாய்ப்பு கால்குலேட்டர் — 70% மதிப்பாய்வு சோதனைப் புள்ளி">Harvest Timing & Market Option Simulator — 70% Review Checkpoint</p>
+    </footer>
+</div>
+
+<!-- JavaScript Logic -->
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

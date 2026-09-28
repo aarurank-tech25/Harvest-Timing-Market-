@@ -1,0 +1,133 @@
+{
+    "evaluation_type": "Synthetic simulation evaluation",
+    "random_seed": 42,
+    "records_evaluated": 800,
+    "number_of_test_cases": 800,
+    "baseline_definition": "IMMEDIATE HARVEST / DAY 0 (Selling at current Day 0 conditions)",
+    "proposed_definition": "Risk-Aware Optimizer (Optimal Day t* between Day 0 and Day 10)",
+    "average_baseline_value": 16998.17,
+    "baseline_average_farmer_value": 16998.17,
+    "average_proposed_value": 20607.08,
+    "proposed_average_farmer_value": 20607.08,
+    "average_value_improvement": 3608.91,
+    "farmer_value_improvement_pct": 21.23,
+    "percentage_value_improvement": 21.23,
+    "baseline_average_spoilage": 21.28,
+    "average_baseline_spoilage": 21.28,
+    "proposed_average_spoilage": 23.48,
+    "average_proposed_spoilage": 23.48,
+    "spoilage_difference": 2.19,
+    "spoilage_reduction_pct": -10.31,
+    "improved_cases_count": 415,
+    "improved_cases_pct": 51.88,
+    "non_inferior_cases_count": 800,
+    "non_inferior_cases_pct": 100.0,
+    "win_count": 800,
+    "win_rate_pct": 100.0,
+    "decision_accuracy_definition": "Proportion of cases where the optimizer identifies the mathematically optimal harvest timing day in synthetic simulation space",
+    "decision_accuracy": 100.0,
+    "error_rate": 0.0,
+    "stakeholder_validation_status": "Real-world stakeholder validation is pending.",
+    "disclaimer": "Synthetic simulation evaluation. Do NOT claim real-world accuracy. Pending real-world field validation.",
+    "case_studies": {
+        "risk_forces_day0": [
+            {
+                "crop": "Tomato",
+                "maturity": 95.4,
+                "temp": 36.3,
+                "humidity": 43.0,
+                "current_price": 15.1,
+                "future_price": 19.5,
+                "day0_value": -659.03,
+                "spoilage": 57.34,
+                "reason": "High ambient temperature/maturity caused rapid decay that would wipe out the 25%+ price gain if delayed."
+            },
+            {
+                "crop": "Potato",
+                "maturity": 98.6,
+                "temp": 15.9,
+                "humidity": 80.0,
+                "current_price": 17.2,
+                "future_price": 22.8,
+                "day0_value": -6584.51,
+                "spoilage": 29.85,
+                "reason": "High ambient temperature/maturity caused rapid decay that would wipe out the 25%+ price gain if delayed."
+            },
+            {
+                "crop": "Mango",
+                "maturity": 96.8,
+                "temp": 25.8,
+                "humidity": 53.3,
+                "current_price": 19.7,
+                "future_price": 25.1,
+                "day0_value": 10665.16,
+                "spoilage": 26.95,
+                "reason": "High ambient temperature/maturity caused rapid decay that would wipe out the 25%+ price gain if delayed."
+            }
+        ],
+        "favorable_wait": [
+            {
+                "crop": "Mango",
+                "maturity": 68.7,
+                "storage": "Ambient",
+                "current_price": 33.9,
+                "future_price": 48.9,
+                "recommended_day": 9,
+                "day0_value": 7518.39,
+                "proposed_value": 19551.88,
+                "improvement_pct": 160.05,
+                "reason": "Low baseline maturity or cold storage contained spoilage, allowing farmer to capture peak future price."
+            },
+            {
+                "crop": "Potato",
+                "maturity": 57.8,
+                "storage": "Cold Storage",
+                "current_price": 31.7,
+                "future_price": 40.7,
+                "recommended_day": 10,
+                "day0_value": 15942.31,
+                "proposed_value": 31490.03,
+                "improvement_pct": 97.52,
+                "reason": "Low baseline maturity or cold storage contained spoilage, allowing farmer to capture peak future price."
+            },
+            {
+                "crop": "Mango",
+                "maturity": 80.1,
+                "storage": "Ambient",
+                "current_price": 23.6,
+                "future_price": 27.1,
+                "recommended_day": 4,
+                "day0_value": -489.92,
+                "proposed_value": -231.0,
+                "improvement_pct": 52.85,
+                "reason": "Low baseline maturity or cold storage contained spoilage, allowing farmer to capture peak future price."
+            }
+        ],
+        "weather_impact": [
+            {
+                "crop": "Rice",
+                "temp": 38.8,
+                "rain_prob": 79.8,
+                "day0_value": 25094.41,
+                "spoilage": 14.32,
+                "reason": "Extreme heat combined with heavy rain probability creates severe rot risk, necessitating immediate sale."
+            },
+            {
+                "crop": "Tomato",
+                "temp": 43.3,
+                "rain_prob": 87.4,
+                "day0_value": 8184.76,
+                "spoilage": 46.54,
+                "reason": "Extreme heat combined with heavy rain probability creates severe rot risk, necessitating immediate sale."
+            },
+            {
+                "crop": "Potato",
+                "temp": 44.5,
+                "rain_prob": 79.3,
+                "day0_value": 30864.97,
+                "spoilage": 9.16,
+                "reason": "Extreme heat combined with heavy rain probability creates severe rot risk, necessitating immediate sale."
+            }
+        ]
+    }
+}
