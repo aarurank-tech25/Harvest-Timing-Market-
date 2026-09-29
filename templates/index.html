@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harvest Timing & Market Option Simulator</title>
+    <meta name="description" content="A responsible AI decision-support platform helping small and medium farmers optimize harvest timing and market selection with live price, weather, and multi-plot analytics.">
+    <!-- Local CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Locally vendored Chart.js (Strictly offline-first, no external CDN dependencies) -->
+    <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
+</head>
+<body>
+
+<div class="container">
+    <!-- Offline Banner Indicator -->
+    <div id="offline-banner" class="offline-banner" role="alert">
+        <span aria-hidden="true">📡</span>
+        <span id="offline-banner-text" 
+              data-en="OFFLINE MODE ACTIVE — USING CACHED & AGRONOMIC FALLBACK DATA" 
+              data-ta="ஆஃப்லைன் பயன்முறை — தற்காலிக மற்றும் உள்ளமைக்கப்பட்ட தரவு பயன்படுத்தப்படுகிறது" 
+              data-hi="ऑफ़लाइन मोड सक्रिय — कैश्ड और कृषि फ़ॉलबैक डेटा का उपयोग किया जा रहा है">
+            OFFLINE MODE ACTIVE — USING CACHED & AGRONOMIC FALLBACK DATA
+        </span>
+    </div>
+
+    <!-- Header -->
+    <header role="banner">
+        <div class="logo-container">
+            <span class="logo-icon" aria-hidden="true">🌾</span>
+            <div class="logo-text">
+                <h1 id="app-title" 
+                    data-en="Harvest Timing & Market Option Simulator" 
+                    data-ta="அறுவடை நேரம் & சந்தை வாய்ப்பு கால்குலேட்டர்"
+                    data-hi="फसल कटाई समय और मंडी विकल्प सिम्युलेटर">
+                    Harvest Timing & Market Option Simulator
+                </h1>
+                <p id="app-subtitle" 
+                   data-en="Responsible AI Decision Support for Farmers (Multi-Plot & Market Economics)" 
+                   data-ta="விவசாயிகளுக்கான பொறுப்பான AI முடிவு ஆதரவு (பல நிலங்கள் & சந்தை பொருளாதாரம்)"
+                   data-hi="किसानों के लिए जिम्मेदार AI निर्णय सहायता (बहु-खेत और मंडी अर्थशास्त्र)">
+                    Responsible AI Decision Support for Farmers (Multi-Plot & Market Economics)
+                </p>
+            </div>
+        </div>
+        
+        <div class="header-controls">
+            <!-- Trilingual Selector (English, Tamil, Hindi) -->
+            <div class="lang-group" role="group" aria-label="Select Language">
+                <button class="btn-lang-choice active" id="btn-lang-en" onclick="setLanguage('en')">English</button>
+                <button class="btn-lang-choice" id="btn-lang-ta" onclick="setLanguage('ta')">தமிழ்</button>
+                <button class="btn-lang-choice" id="btn-lang-hi" onclick="setLanguage('hi')">हिंदी</button>
+            </div>
+
+            <!-- Global Connection Indicator -->
+            <div id="status-indicator" class="status-badge status-online" role="status">
+                <span class="status-dot">●</span>
+                <span id="status-text" data-en="ONLINE" data-ta="ஆன்லைன்" data-hi="ऑनलाइन">ONLINE</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Live Data Integration Bar (Market Price & Weather) -->
+    <section class="live-data-bar" aria-label="Live Integration Services">
+        <!-- Live Market Price Integration -->
+        <div class="live-section">
+            <span style="font-weight: 600; font-size: 0.9rem;" data-en="Market Price:" data-ta="சந்தை விலை:" data-hi="मंडी भाव:">Market Price:</span>
+            <span id="market-badge" class="live-badge badge-fallback">● FALLBACK</span>
+            <span id="market-price-display" style="font-weight: 700; color: var(--accent-color);">₹30.00/kg</span>
+            <span id="market-source-info" style="font-size: 0.8rem; color: var(--text-muted);">(APMC Benchmark)</span>
+            <button class="btn-small" onclick="refreshMarketPrice()" title="Check live Agmarknet / e-NAM price">
+                <span aria-hidden="true">🔄</span>
+                <span data-en="Check Live Price" data-ta="நேரலை விலை காண்க" data-hi="लाइव भाव देखें">Check Live Price</span>
+            </button>
+        </div>
+
+        <!-- Live Weather & Location Integration -->
+        <div class="live-section">
+            <span style="font-weight: 600; font-size: 0.9rem;" data-en="Agro-Weather:" data-ta="வானிலை:" data-hi="मौसम:">Agro-Weather:</span>
+            <span id="weather-badge" class="live-badge badge-live">● LIVE WEATHER</span>
+            <span id="weather-display" style="font-weight: 700; color: var(--primary-color);">25°C | 60% RH</span>
+            <span id="weather-location-info" style="font-size: 0.8rem; color: var(--text-muted);">(Dindigul)</span>
+            <select id="district-selector" class="form-control" style="width: auto; padding: 4px 8px; font-size: 0.8rem;" onchange="updateDistrictWeather()">
+                <option value="dindigul">Dindigul (TN)</option>
+                <option value="kolar">Kolar (KA)</option>
+                <option value="nashik">Nashik (MH)</option>
+                <option value="pune">Pune (MH)</option>
+                <option value="varanasi">Varanasi (UP)</option>
+                <option value="guntur">Guntur (AP)</option>
+            </select>
+            <button class="btn-small" onclick="fetchGPSWeather()" title="Use device GPS location">
+                <span aria-hidden="true">📍</span>
+                <span data-en="Use My GPS" data-ta="எனது GPS இடம்" data-hi="मेरा GPS स्थान">Use My GPS</span>
+            </button>
+        </div>
+    </section>
+
+    <!-- Main Dashboard Grid -->
+    <main class="dashboard-grid" role="main">
+        
+        <!-- Left Column: Inputs & Scenarios -->
+        <section aria-labelledby="inputs-title">
+            <!-- Scenario Quick Select -->
+            <div class="card" style="margin-bottom: 20px;">
+                <h2 class="card-title" id="scenarios-title" style="font-size: 1.1rem;">
+                    <span aria-hidden="true">📋</span> 
+                    <span data-en="Predefined Scenarios" data-ta="முன் வரையறுக்கப்பட்ட காட்சிகள்" data-hi="पूर्व निर्धारित परिदृश्य">Predefined Scenarios</span>
+                </h2>
+                <div class="scenario-selector" role="group" aria-label="Quick Select Predefined Scenarios">
+                    <button class="btn-scenario" onclick="selectScenario(1)" data-en="Normal" data-ta="சாதாரண நிலை" data-hi="सामान्य">Normal</button>
+                    <button class="btn-scenario" onclick="selectScenario(2)" data-en="High Risk" data-ta="அதிக அபாயம்" data-hi="उच्च जोखिम">High Risk</button>
+                    <button class="btn-scenario" onclick="selectScenario(3)" data-en="Future Price" data-ta="எதிர்கால விலை" data-hi="भविष्य मूल्य">Future Price</button>
+                </div>
+            </div>
+
+            <!-- Farmer Inputs Card -->
+            <div class="card">
+                <h2 class="card-title" id="inputs-title">
+                    <span aria-hidden="true">🚜</span> 
+                    <span data-en="Plot Parameters" data-ta="நில அளவுருக்கள்" data-hi="खेत के मापदंड">Plot Parameters</span>
+                </h2>
+                
+                <form id="farmer-form" onsubmit="event.preventDefault(); runSimulationDynamic();">
+                    
+                    <!-- Crop Dropdown -->
+                    <div class="form-group">
+                        <label class="form-label" for="crop" data-en="Crop Name" data-ta="பயிர் பெயர்" data-hi="फसल का नाम">Crop Name</label>
+                        <select id="crop" class="form-control" required onchange="onCropChange()">
+                            <option value="Tomato" data-en="Tomato (தக்காளி / टमाटर)" data-ta="Tomato (தக்காளி)" data-hi="Tomato (टमाटर)">Tomato (தக்காளி / टमाटर)</option>
+                            <option value="Potato" data-en="Potato (உருளைக்கிழங்கு / आलू)" data-ta="Potato (உருளைக்கிழங்கு)" data-hi="Potato (आलू)">Potato (உருளைக்கிழங்கு / आलू)</option>
+                            <option value="Onion" data-en="Onion (வெங்காயம் / प्याज)" data-ta="Onion (வெங்காயம்)" data-hi="Onion (प्याज)">Onion (வெங்காயம் / प्याज)</option>
+                            <option value="Rice" data-en="Rice (நெல் / धान)" data-ta="Rice (நெல்)" data-hi="Rice (धान)">Rice (நெல் / धान)</option>
+                            <option value="Mango" data-en="Mango (மாம்பழம் / आम)" data-ta="Mango (மாம்பழம்)" data-hi="Mango (आम)">Mango (மாம்பழம் / आम)</option>
+                        </select>
+                    </div>
+
+                    <!-- Crop Maturity Slider -->
+                    <div class="form-group">
+                        <label class="form-label" for="maturity">
+                            <span data-en="Crop Maturity (%)" data-ta="பயிர் முதிர்ச்சி (%)" data-hi="फसल परिपक्वता (%)">Crop Maturity (%)</span>
+                            <span id="maturity-val" class="form-label-val">80%</span>
+                        </label>
+                        <input type="range" id="maturity" min="10" max="110" value="80" oninput="updateVal('maturity')">
+                    </div>
+
+                    <!-- Quantity Input -->
+                    <div class="form-group">
+                        <label class="form-label" for="quantity" data-en="Quantity (kg)" data-ta="பயிர் அளவு (கிலோ)" data-hi="मात्रा (किग्रा)">Quantity (kg)</label>
+                        <input type="number" id="quantity" class="form-control" min="1" value="1000" required>
+                    </div>
+
+                    <!-- Current Price and Future Price row -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="current_price" data-en="Current Spot Price (₹/kg)" data-ta="தற்போதைய விலை (₹/கிலோ)" data-hi="वर्तमान मंडी भाव (₹/किग्रा)">Current Spot Price (₹/kg)</label>
+                            <input type="number" id="current_price" class="form-control" min="1" step="0.5" value="30" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="future_price" data-en="Expected Future Price (₹/kg)" data-ta="எதிர்கால விலை (₹/கிலோ)" data-hi="अपेक्षित भविष्य मूल्य (₹/किग्रा)">Expected Future Price (₹/kg)</label>
+                            <input type="number" id="future_price" class="form-control" min="1" step="0.5" value="35" required>
+                        </div>
+                    </div>
+
+                    <!-- Temperature Slider -->
+                    <div class="form-group">
+                        <label class="form-label" for="temperature">
+                            <span data-en="Ambient Temperature (°C)" data-ta="வெப்பநிலை (°C)" data-hi="परिवेश तापमान (°C)">Ambient Temperature (°C)</span>
+                            <span id="temperature-val" class="form-label-val">25°C</span>
+                        </label>
+                        <input type="range" id="temperature" min="-5" max="50" value="25" oninput="updateVal('temperature')">
+                    </div>
+
+                    <!-- Humidity Slider -->
+                    <div class="form-group">
+                        <label class="form-label" for="humidity">
+                            <span data-en="Relative Humidity (%)" data-ta="ஈரப்பதம் (%)" data-hi="सापेक्ष आर्द्रता (%)">Relative Humidity (%)</span>
+                            <span id="humidity-val" class="form-label-val">60%</span>
+                        </label>
+                        <input type="range" id="humidity" min="10" max="100" value="60" oninput="updateVal('humidity')">
+                    </div>
+
+                    <!-- Rain Probability Slider -->
+                    <div class="form-group">
+                        <label class="form-label" for="rain_probability">
+                            <span data-en="Rain Probability (%)" data-ta="மழை வாய்ப்பு (%)" data-hi="बारिश की संभावना (%)">Rain Probability (%)</span>
+                            <span id="rain_probability-val" class="form-label-val">20%</span>
+                        </label>
+                        <input type="range" id="rain_probability" min="0" max="100" value="20" oninput="updateVal('rain_probability')">
+                    </div>
+
+                    <!-- Weather Condition dropdown -->
+                    <div class="form-group">
+                        <label class="form-label" for="weather_condition" data-en="Weather Forecast" data-ta="வானிலை நிலைமை" data-hi="मौसम पूर्वानुमान">Weather Forecast</label>
+                        <select id="weather_condition" class="form-control">
+                            <option value="Sunny" data-en="Sunny / Clear" data-ta="வெயில் / தெளிவான" data-hi="धूप / साफ़">Sunny / Clear</option>
+                            <option value="Cloudy" data-en="Cloudy" data-ta="மேகமூட்டம்" data-hi="बादल छाए रहेंगे">Cloudy</option>
+                            <option value="Rainy" data-en="Rainy" data-ta="மழை" data-hi="बारिश">Rainy</option>
+                            <option value="Humid" data-en="Humid / Muggy" data-ta="ஈரப்பதம் / புழுக்கம்" data-hi="आर्द्र / उमस">Humid / Muggy</option>
+                        </select>
+                    </div>
+
+                    <!-- Storage duration Slider -->
+                    <div class="form-group">
+                        <label class="form-label" for="storage_duration">
+                            <span data-en="Storage Duration (days)" data-ta="சேமிப்பு காலம் (நாட்கள்)" data-hi="भंडारण अवधि (दिन)">Storage Duration (days)</span>
+                            <span id="storage_duration-val" class="form-label-val">2 days</span>
+                        </label>
+                        <input type="range" id="storage_duration" min="0" max="15" value="2" oninput="updateVal('storage_duration')">
+                    </div>
+
+                    <!-- Storage Condition dropdown -->
+                    <div class="form-group">
+                        <label class="form-label" for="storage_condition" data-en="Storage Condition" data-ta="சேமிப்பு வசதி" data-hi="भंडारण की स्थिति">Storage Condition</label>
+                        <select id="storage_condition" class="form-control">
+                            <option value="Ambient" data-en="Ambient (Normal Room)" data-ta="இயல்பான அறை" data-hi="सामान्य कमरा (परिवेश)">Ambient (Normal Room)</option>
+                            <option value="Cold Storage" data-en="Cold Storage" data-ta="குளிர்பதன கிடங்கு" data-hi="कोल्ड स्टोरेज">Cold Storage</option>
+                        </select>
+                    </div>
+
+                    <!-- Transport Duration Slider -->
+                    <div class="form-group">
+                        <label class="form-label" for="transport_duration">
+                            <span data-en="Transport Duration (hours)" data-ta="போக்குவரத்து நேரம் (மணி)" data-hi="परिवहन समय (घंटे)">Transport Duration (hours)</span>
+                            <span id="transport_duration-val" class="form-label-val">2 hours</span>
+                        </label>
+                        <input type="range" id="transport_duration" min="0" max="24" value="2" oninput="updateVal('transport_duration')">
+                    </div>
+
+                    <button type="submit" class="btn-submit">
+                        <span aria-hidden="true">⚖️</span>
+                        <span data-en="Calculate Decision" data-ta="முடிவை கணக்கிடுக" data-hi="निर्णय की गणना करें">Calculate Decision</span>
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Saved Calculations Offline Storage -->
+            <div class="card" style="margin-top: 20px;">
+                <h3 class="card-title" style="font-size: 1.1rem;">
+                    <span aria-hidden="true">💾</span>
+                    <span data-en="Offline Saved Calculations" data-ta="சேமிக்கப்பட்ட கணக்கீடுகள்" data-hi="सहेजे गए ऑफ़लाइन रिकॉर्ड">Offline Saved Calculations</span>
+                </h3>
+                <ul id="saved-calculations-list" style="list-style-type: none; font-size: 0.85rem; max-height: 150px; overflow-y: auto;">
+                    <li style="color: var(--text-muted);" data-en="No calculations saved locally yet." data-ta="உள்ளூர் சேமிப்புகள் எதுவும் இல்லை." data-hi="स्थानीय रूप से कोई गणना सहेजी नहीं गई है।">No calculations saved locally yet.</li>
+                </ul>
+                <button class="btn-lang" onclick="saveCalculationLocally()" style="width: 100%; margin-top: 10px; display: block; text-align: center;" data-en="Save Current Input Offline" data-ta="இப்போதைய உள்ளீட்டை சேமி" data-hi="वर्तमान इनपुट ऑफ़लाइन सहेजें">
+                    Save Current Input Offline
+                </button>
+            </div>
+        </section>
+
+        <!-- Right Column: Results & Dashboard tabs -->
+        <section aria-labelledby="results-section-title">
+            <h2 class="sr-only" id="results-section-title">Simulation Results</h2>
+
+            <!-- Warning Alert Container -->
+            <div id="warning-container" style="display: none;"></div>
+
+            <!-- Tab Headers -->
+            <div class="tabs" role="tablist">
+                <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-dashboard" onclick="switchTab('tab-dashboard', this)" data-en="Decision Dashboard" data-ta="முடிவு டாஷ்போர்டு" data-hi="निर्णय डैशबोर्ड">Decision Dashboard</button>
+                <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-multiplot" onclick="switchTab('tab-multiplot', this)" data-en="Multi-Plot Farm View" data-ta="பல நிலங்கள் பார்வை" data-hi="बहु-खेत प्रबंधन">Multi-Plot Farm View</button>
+                <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-sensitivity" onclick="switchTab('tab-sensitivity', this)" data-en="Sensitivity Analysis" data-ta="உணர்திறன் பகுப்பாய்வு" data-hi="संवेदनशीलता विश्लेषण">Sensitivity Analysis</button>
+                <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-evaluation" onclick="switchTab('tab-evaluation', this)" data-en="System Evaluation" data-ta="கணினி மதிப்பீடு" data-hi="सिस्टम मूल्यांकन">System Evaluation</button>
+            </div>
+
+            <!-- Tab 1: Dashboard -->
+            <div id="tab-dashboard" class="tab-content active" role="tabpanel">
+                <!-- Harvest Decision Box -->
+                <div id="recommendation-box" class="rec-box harvest">
+                    <span id="rec-badge-label" class="rec-badge" data-en="Recommendation" data-ta="பரிந்துரை" data-hi="सिफारिश">Recommendation</span>
+                    <div id="rec-decision" class="rec-title" data-en="HARVEST NOW" data-ta="இப்போது அறுவடை செய்க" data-hi="अभी फसल काटें">HARVEST NOW</div>
+                </div>
+
+                <!-- Highlight Metrics Grid -->
+                <div class="highlight-grid">
+                    <div class="h-metric">
+                        <div class="h-metric-label" data-en="Expected Net Value" data-ta="எதிர்பார்க்கப்படும் நிகர மதிப்பு" data-hi="अपेक्षित शुद्ध मूल्य">Expected Net Value</div>
+                        <div id="metric-net-value" class="h-metric-val" style="color: var(--accent-color);">₹0.00</div>
+                    </div>
+                    <div class="h-metric">
+                        <div class="h-metric-label" data-en="Spoilage Risk Level" data-ta="அழுகல் அபாய நிலை" data-hi="खराबी जोखिम स्तर">Spoilage Risk Level</div>
+                        <div id="metric-risk-level" class="h-metric-val risk-low">Low Risk</div>
+                    </div>
+                    <div class="h-metric">
+                        <div class="h-metric-label" data-en="Estimated Spoilage" data-ta="மதிப்பிடப்பட்ட அழுகல் %" data-hi="अनुमानित खराबी %">Estimated Spoilage</div>
+                        <div id="metric-spoilage-pct" class="h-metric-val">0.0%</div>
+                    </div>
+                    <div class="h-metric">
+                        <div class="h-metric-label" data-en="AI Confidence" data-ta="AI நம்பிக்கை நிலை" data-hi="AI विश्वास स्तर">AI Confidence</div>
+                        <div id="metric-confidence" class="h-metric-val">High</div>
+                    </div>
+                </div>
+
+                <!-- Explanation Layer -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">💡</span>
+                        <span data-en="Decision Explanation & Drivers" data-ta="முடிவு காரணங்கள் & இயக்கிகள்" data-hi="निर्णय का स्पष्टीकरण और मुख्य कारक">Decision Explanation & Drivers</span>
+                    </h3>
+                    <div class="explanation-section">
+                        <h4 id="explanation-subheading" data-en="Key Agricultural & Economic Drivers" data-ta="இந்த முடிவின் முக்கிய காரணிகள்" data-hi="मुख्य कृषि और आर्थिक कारक">Key Agricultural & Economic Drivers</h4>
+                        <ul id="explanation-list" class="explanation-list">
+                            <!-- Populated dynamically -->
+                        </ul>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); font-style: italic;" data-en="*Note: This recommendation balances spoilage biology against market logistics to maximize net pocket earnings." data-ta="*குறிப்பு: இந்த பரிந்துரை அதிக வருவாயை ஈட்ட பயிர் அழுகல் மற்றும் சந்தை செலவுகளை சமன் செய்கிறது." data-hi="*नोट: यह सिफारिश शुद्ध आय को अधिकतम करने के लिए फसल सड़न और रसद लागत को संतुलित करती है।">
+                        *Note: This recommendation balances spoilage biology against market logistics to maximize net pocket earnings.
+                    </p>
+                </div>
+
+                <!-- 4-Tier Market Options Simulator (Step 5) -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">🏪</span>
+                        <span data-en="Market Channel Optimization (4 Channels)" data-ta="சந்தை தேர்வு உகப்பாக்கம் (4 வழிகள்)" data-hi="मंडी चैनल अनुकूलन (4 विकल्प)">Market Channel Optimization (4 Channels)</span>
+                    </h3>
+                    <p style="font-size: 0.9rem; color: var(--text-muted);" data-en="Evaluates Local Mandi, Regional APMC Hub, Direct Premium Buyer, and Farm-Gate Distress options with transparent cost breakdowns." data-ta="உள்ளூர் மண்டி, APMC மையம், பிரீமியம் வாங்குபவர், மற்றும் பண்ணை வாசல் விற்பனையை ஒப்பிடுகிறது." data-hi="स्थानीय मंडी, क्षेत्रीय APMC, प्रत्यक्ष खुदरा और खेत-द्वार बिक्री का विस्तृत लागत विश्लेषण।">
+                        Evaluates Local Mandi, Regional APMC Hub, Direct Premium Buyer, and Farm-Gate Distress options with transparent cost breakdowns.
+                    </p>
+                    
+                    <div id="market-cards-container" class="market-grid-4">
+                        <!-- Populated dynamically -->
+                    </div>
+
+                    <div id="market-recommendation-note" style="margin-top: 14px; padding: 12px; background: rgba(16, 185, 129, 0.08); border-radius: 8px; font-size: 0.88rem; color: var(--text-primary); border-left: 3px solid var(--primary-color);">
+                        <!-- Dynamic market explanation -->
+                    </div>
+                </div>
+
+                <!-- Harvest Now vs Wait Comparison Table -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">⚖️</span>
+                        <span data-en="Day 0 vs Recommended Day Comparison" data-ta="நாள் 0 vs பரிந்துரைக்கப்பட்ட நாள் ஒப்பீடு" data-hi="दिन 0 बनाम अनुशंसित दिन तुलना">Day 0 vs Recommended Day Comparison</span>
+                    </h3>
+                    <table class="compare-table">
+                        <thead>
+                            <tr>
+                                <th data-en="Economic Parameter" data-ta="பொருளாதார அளவுரு" data-hi="आर्थिक पैरामीटर">Economic Parameter</th>
+                                <th data-en="Day 0 (Harvest Now)" data-ta="நாள் 0 (உடனடி அறுவடை)" data-hi="दिन 0 (अभी कटाई)">Day 0 (Harvest Now)</th>
+                                <th id="th-recommended-day" data-en="Recommended Day" data-ta="பரிந்துரைக்கப்பட்ட நாள்" data-hi="अनुशंसित दिन">Recommended Day</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td data-en="Expected Price (₹/kg)" data-ta="சந்தை விலை (₹/கிலோ)" data-hi="मंडी भाव (₹/किग्रा)">Expected Price (₹/kg)</td>
+                                <td id="tbl-price-now">₹0.00</td>
+                                <td id="tbl-price-wait">₹0.00</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Spoilage Rate (%)" data-ta="அழுகும் விகிதம் (%)" data-hi="खराबी दर (%)">Spoilage Rate (%)</td>
+                                <td id="tbl-spoilage-now">0%</td>
+                                <td id="tbl-spoilage-wait">0%</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Usable Quantity (kg)" data-ta="விற்கக்கூடிய அளவு (கிலோ)" data-hi="बिक्री योग्य मात्रा (किग्रा)">Usable Quantity (kg)</td>
+                                <td id="tbl-qty-now">0 kg</td>
+                                <td id="tbl-qty-wait">0 kg</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Gross Revenue (₹)" data-ta="மொத்த வருவாய் (₹)" data-hi="सकल राजस्व (₹)">Gross Revenue (₹)</td>
+                                <td id="tbl-rev-now">₹0.00</td>
+                                <td id="tbl-rev-wait">₹0.00</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Spoilage Loss (₹)" data-ta="அழுகல் இழப்பு (₹)" data-hi="खराबी से नुकसान (₹)">Spoilage Loss (₹)</td>
+                                <td id="tbl-loss-now" style="color: var(--danger);">₹0.00</td>
+                                <td id="tbl-loss-wait" style="color: var(--danger);">₹0.00</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Storage Cost (₹)" data-ta="சேமிப்பு செலவு (₹)" data-hi="भंडारण लागत (₹)">Storage Cost (₹)</td>
+                                <td id="tbl-store-now">₹0.00</td>
+                                <td id="tbl-store-wait">₹0.00</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Transport Cost (₹)" data-ta="போக்குவரத்து செலவு (₹)" data-hi="परिवहन लागत (₹)">Transport Cost (₹)</td>
+                                <td id="tbl-trans-now">₹0.00</td>
+                                <td id="tbl-trans-wait">₹0.00</td>
+                            </tr>
+                            <tr style="border-top: 2px solid var(--border-glass); font-weight: bold;">
+                                <td data-en="Net Farmer Value (₹)" data-ta="நிகர மதிப்பு (₹)" data-hi="शुद्ध किसान मूल्य (₹)">Net Farmer Value (₹)</td>
+                                <td id="tbl-net-now">₹0.00</td>
+                                <td id="tbl-net-wait">₹0.00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Baseline vs Risk-Aware Comparison -->
+                <div class="card">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">📈</span>
+                        <span data-en="Price-Only Baseline vs Risk-Aware Outcome" data-ta="விலை மட்டுமே அடிப்படை vs அபாய முடிவு" data-hi="केवल मूल्य आधार बनाम जोखिम-सचेत परिणाम">Price-Only Baseline vs Risk-Aware Outcome</span>
+                    </h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center; margin-bottom: 20px;">
+                        <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
+                            <h4 data-en="Price-Only Baseline" data-ta="விலை மட்டுமே அடிப்படை" data-hi="केवल मूल्य आधार">Price-Only Baseline</h4>
+                            <div id="base-decision-display" style="font-size: 1.2rem; font-weight: bold; margin: 8px 0;">Wait</div>
+                            <div id="base-value-display" style="color: var(--text-muted); font-size: 1.1rem;">₹0.00</div>
+                        </div>
+                        <div style="background: rgba(16,185,129,0.05); padding: 15px; border-radius: 8px; border: 1px dashed var(--primary-color);">
+                            <h4 data-en="Proposed Risk-Aware" data-ta="அபாய கால்குலேட்டர்" data-hi="प्रस्तावित जोखिम-सचेत">Proposed Risk-Aware</h4>
+                            <div id="proposed-decision-display" style="font-size: 1.2rem; font-weight: bold; color: var(--primary-color); margin: 8px 0;">Harvest Now</div>
+                            <div id="proposed-value-display" style="color: var(--success); font-size: 1.1rem;">₹0.00</div>
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding: 10px; font-weight: bold; font-size: 1.1rem; border-top: 1px solid var(--border-glass);">
+                        <span data-en="Farmer Net Advantage: " data-ta="விவசாயிக்கு கூடுதல் லாபம்: " data-hi="किसान शुद्ध लाभ: ">Farmer Net Advantage: </span>
+                        <span id="improvement-display" class="compare-diff-positive">₹0.00 (+0.0%)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 2: Multi-Plot Farm View (Step 4) -->
+            <div id="tab-multiplot" class="tab-content" role="tabpanel">
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                        <h3 class="card-title" style="margin-bottom: 0;">
+                            <span aria-hidden="true">🌱</span>
+                            <span data-en="Multi-Plot Farm Portfolio Management" data-ta="பல நிலங்கள் பண்ணை மேலாண்மை" data-hi="बहु-खेत पोर्टफोलियो प्रबंधन">Multi-Plot Farm Portfolio Management</span>
+                        </h3>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn-small" onclick="addNewPlotPrompt()">
+                                <span>➕</span>
+                                <span data-en="Add Plot" data-ta="நிலம் சேர்" data-hi="खेत जोड़ें">Add Plot</span>
+                            </button>
+                            <button class="btn-small" onclick="loadDefaultPlotDemo()">
+                                <span>🔄</span>
+                                <span data-en="Load 3-Plot Demo" data-ta="மாதிரி 3 நிலங்கள்" data-hi="3-खेत डेमो लोड करें">Load 3-Plot Demo</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Portfolio Summary Cards -->
+                    <div class="plot-summary-grid">
+                        <div class="plot-summary-card">
+                            <div style="color: var(--text-muted); font-size: 0.85rem;" data-en="Total Plots" data-ta="மொத்த நிலங்கள்" data-hi="कुल खेत">Total Plots</div>
+                            <div id="plot-stat-count" class="plot-summary-val">3</div>
+                        </div>
+                        <div class="plot-summary-card">
+                            <div style="color: var(--text-muted); font-size: 0.85rem;" data-en="Total Quantity (kg)" data-ta="மொத்த அளவு (கிலோ)" data-hi="कुल मात्रा (किग्रा)">Total Quantity (kg)</div>
+                            <div id="plot-stat-quantity" class="plot-summary-val" style="color: var(--accent-color);">2,250 kg</div>
+                        </div>
+                        <div class="plot-summary-card">
+                            <div style="color: var(--text-muted); font-size: 0.85rem;" data-en="Total Expected Value" data-ta="மொத்த நிகர மதிப்பு" data-hi="कुल अपेक्षित मूल्य">Total Expected Value</div>
+                            <div id="plot-stat-value" class="plot-summary-val" style="color: var(--success);">₹57,118</div>
+                        </div>
+                        <div class="plot-summary-card">
+                            <div style="color: var(--text-muted); font-size: 0.85rem;" data-en="Avg Spoilage Rate" data-ta="சராசரி அழுகல் %" data-hi="औसत खराबी %">Avg Spoilage Rate</div>
+                            <div id="plot-stat-spoilage" class="plot-summary-val" style="color: #60a5fa;">18.4%</div>
+                        </div>
+                    </div>
+
+                    <!-- Plots Table -->
+                    <div class="plot-table-container">
+                        <table class="plot-table">
+                            <thead>
+                                <tr>
+                                    <th data-en="Plot Name" data-ta="நில பெயர்" data-hi="खेत का नाम">Plot Name</th>
+                                    <th data-en="Crop" data-ta="பயிர்" data-hi="फसल">Crop</th>
+                                    <th data-en="Quantity" data-ta="அளவு" data-hi="मात्रा">Quantity</th>
+                                    <th data-en="Maturity" data-ta="முதிர்ச்சி" data-hi="परिपक्वता">Maturity</th>
+                                    <th data-en="Recommended Day" data-ta="பரிந்துரைக்கப்பட்ட நாள்" data-hi="अनुशंसित दिन">Recommended Day</th>
+                                    <th data-en="Recommended Market" data-ta="பரிந்துரைக்கப்பட்ட சந்தை" data-hi="अनुशंसित मंडी">Recommended Market</th>
+                                    <th data-en="Expected Value" data-ta="எதிர்பார்க்கப்படும் மதிப்பு" data-hi="अपेक्षित मूल्य">Expected Value</th>
+                                    <th data-en="Spoilage Risk" data-ta="அழுகல் அபாயம்" data-hi="खराबी जोखिम">Spoilage Risk</th>
+                                    <th data-en="Actions" data-ta="செயல்கள்" data-hi="कार्रवाई">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="multiplot-table-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 3: Sensitivity Analysis -->
+            <div id="tab-sensitivity" class="tab-content" role="tabpanel">
+                <div class="card">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">📉</span>
+                        <span data-en="Dynamic Sensitivity Charts" data-ta="உணர்திறன் வரைபடங்கள்" data-hi="गतिशील संवेदनशीलता चार्ट">Dynamic Sensitivity Charts</span>
+                    </h3>
+                    <p style="font-size: 0.9rem; color: var(--warning); font-weight: 500;" id="sensitivity-note">
+                        ⚠️ “These assumptions changed the final recommendation.”
+                    </p>
+                    <div class="sensitivity-grid">
+                        <div>
+                            <h4 style="margin-bottom: 8px;" data-en="Net Profit vs Spoilage %" data-ta="நிகர லாபம் vs பயிர் அழுகல் %" data-hi="शुद्ध लाभ बनाम खराबी %">Net Profit vs Spoilage %</h4>
+                            <div class="chart-container">
+                                <canvas id="chart-profit-spoilage"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 8px;" data-en="Net Profit vs Future Price" data-ta="நிகர லாபம் vs எதிர்கால விலை" data-hi="शुद्ध लाभ बनाम भविष्य मूल्य">Net Profit vs Future Price</h4>
+                            <div class="chart-container">
+                                <canvas id="chart-profit-futureprice"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 8px;" data-en="Optimal Decision vs Maturity" data-ta="முடிவு vs பயிர் முதிர்ச்சி" data-hi="इष्टतम निर्णय बनाम परिपक्वता">Optimal Decision vs Maturity</h4>
+                            <div class="chart-container">
+                                <canvas id="chart-decision-maturity"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 8px;" data-en="Net Profit vs Storage Time" data-ta="நிகர லாபம் vs சேமிப்பு காலம்" data-hi="शुद्ध लाभ बनाम भंडारण समय">Net Profit vs Storage Time</h4>
+                            <div class="chart-container">
+                                <canvas id="chart-profit-storage"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 4: Evaluation Metrics -->
+            <div id="tab-evaluation" class="tab-content" role="tabpanel">
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">📊</span>
+                        <span data-en="System Evaluation Report" data-ta="கணினி மதிப்பீட்டு அறிக்கை" data-hi="सिस्टम मूल्यांकन रिपोर्ट">System Evaluation Report</span>
+                    </h3>
+                    <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 15px;" data-en="Calculated from 1000 synthetic validation records (Seed = 42)." data-ta="1000 செயற்கை சரிபார்ப்பு பதிவுகளிலிருந்து கணக்கிடப்பட்டது." data-hi="1000 सिंथेटिक सत्यापन रिकॉर्ड से गणना (सीड = 42)।">
+                        Calculated from 1000 synthetic validation records (Seed = 42).
+                    </p>
+                    <table class="compare-table">
+                        <thead>
+                            <tr>
+                                <th data-en="Evaluation Metric" data-ta="மதிப்பீட்டு அளவுரு" data-hi="मूल्यांकन पैरामीटर">Evaluation Metric</th>
+                                <th data-en="Baseline (Price-Only)" data-ta="அடிப்படை (விலை மட்டும்)" data-hi="आधारभूत (केवल मूल्य)">Baseline (Price-Only)</th>
+                                <th data-en="Target (Theoretical Oracle)" data-ta="இலக்கு (உகந்த தீர்வு)" data-hi="इष्टतम ओरेकल">Target (Theoretical Oracle)</th>
+                                <th data-en="Measured Result (Risk-Aware)" data-ta="அளவிடப்பட்ட முடிவு" data-hi="मापा गया परिणाम (जोखिम-सचेत)">Measured Result (Risk-Aware)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td data-en="Decision Accuracy (%)" data-ta="முடிவு துல்லியம் (%)" data-hi="निर्णय सटीकता (%)">Decision Accuracy (%)</td>
+                                <td id="eval-base-acc">51.5%</td>
+                                <td>100.0%</td>
+                                <td id="eval-proposed-acc" style="font-weight: bold; color: var(--success);">100.0%</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Average Net Farmer Value (₹)" data-ta="சராசரி நிகர மதிப்பு (₹)" data-hi="औसत शुद्ध मूल्य (₹)">Average Net Farmer Value (₹)</td>
+                                <td id="eval-base-val">₹8,861.41</td>
+                                <td id="eval-target-val">₹11,006.94</td>
+                                <td id="eval-proposed-val" style="font-weight: bold; color: var(--accent-color);">₹11,006.94</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Average Spoilage Rate (%)" data-ta="சராசரி பயிர் அழுகல் %" data-hi="औसत फसल खराबी %">Average Spoilage Rate (%)</td>
+                                <td id="eval-base-spoil">40.5%</td>
+                                <td>-</td>
+                                <td id="eval-proposed-spoil" style="color: var(--success);">37.0%</td>
+                            </tr>
+                            <tr>
+                                <td data-en="Edge-Case Robustness (%)" data-ta="விளிம்பு நிலை வலிமை (%)" data-hi="एज-केस मजबूती (%)">Edge-Case Robustness (%)</td>
+                                <td>0.0%</td>
+                                <td>100.0%</td>
+                                <td style="font-weight: bold; color: var(--primary-color);">100.0%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Error Analysis & Case Studies -->
+                <div class="card">
+                    <h3 class="card-title">
+                        <span aria-hidden="true">🔍</span>
+                        <span data-en="Failure Cases & Behavioral Analysis" data-ta="பிழை பகுப்பாய்வு & வழக்கு ஆய்வுகள்" data-hi="विफलता विश्लेषण और केस स्टडी">Failure Cases & Behavioral Analysis</span>
+                    </h3>
+                    <div style="display: flex; flex-direction: column; gap: 15px; font-size: 0.9rem;">
+                        <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
+                            <strong style="color: var(--accent-color);" data-en="1. Spoilage risk reverses naive price expectation" data-ta="1. பயிர் அழுகும் அபாயம் முடிவை மாற்றுகிறது" data-hi="1. खराबी का जोखिम मूल्य निर्णय को उलट देता है">1. Spoilage risk reverses naive price expectation</strong>
+                            <p data-en="When weather is extreme (>38°C) and storage exceeds 4 days, waiting for a ₹5/kg price hike results in catastrophic spoilage (45%+), wiping out profit." data-ta="வானிலை மிகவும் வெப்பமாக இருக்கும்போது, காத்திருப்பது பெரிய நஷ்டத்தை ஏற்படுத்துகிறது." data-hi="जब मौसम अत्यधिक गर्म (>38°C) हो और भंडारण 4 दिन से अधिक हो, तो ₹5/किग्रा वृद्धि की प्रतीक्षा करने से भारी नुकसान होता है।">When weather is extreme (>38°C) and storage exceeds 4 days, waiting for a ₹5/kg price hike results in catastrophic spoilage (45%+), wiping out profit.</p>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px;">
+                            <strong style="color: var(--accent-color);" data-en="2. Extreme rainfall and standing crop rot" data-ta="2. அதிக மழை மற்றும் பயிர் சேதம்" data-hi="2. अत्यधिक बारिश और खड़ी फसल सड़न">2. Extreme rainfall and standing crop rot</strong>
+                            <p data-en="If rain probability exceeds 80%, immediate harvesting avoids field moisture logging, saving thousands even if next week's market price is higher." data-ta="மழை வாய்ப்பு 80%க்கு மேல் இருக்கும் போது உடனடியாக அறுவடை செய்வது பயிரை பாதுகாக்கிறது." data-hi="यदि बारिश की संभावना 80% से अधिक है, तो तत्काल कटाई जलभराव से बचाती है।">If rain probability exceeds 80%, immediate harvesting avoids field moisture logging, saving thousands even if next week's market price is higher.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Ethics and Responsible AI Section -->
+    <section class="card ethics-section" aria-labelledby="ethics-title">
+        <h3 class="card-title" id="ethics-title">
+            <span aria-hidden="true">🛡️</span>
+            <span data-en="Responsible AI & Ethics Disclosure" data-ta="பொறுப்பான AI மற்றும் நெறிமுறைகள் வெளிப்பாடு" data-hi="जिम्मेदार AI और नैतिकता प्रकटीकरण">Responsible AI & Ethics Disclosure</span>
+        </h3>
+        <div class="ethics-grid">
+            <div class="ethics-item">
+                <h5 data-en="Decision Support Only" data-ta="முடிவு ஆதரவு மட்டுமே" data-hi="केवल निर्णय सहायता">Decision Support Only</h5>
+                <p data-en="This system provides statistical estimates and does not replace on-ground agronomic inspections or local mandi reality checks." data-ta="இந்த அமைப்பு புள்ளிவிவர மதிப்பீடுகளை மட்டுமே வழங்குகிறது, நேரடி கள ஆய்வை மாற்றாது." data-hi="यह प्रणाली सांख्यिकीय अनुमान प्रदान करती है और जमीनी निरीक्षण का स्थान नहीं लेती है।">This system provides statistical estimates and does not replace on-ground agronomic inspections or local mandi reality checks.</p>
+            </div>
+            <div class="ethics-item">
+                <h5 data-en="Model Uncertainty & Fallbacks" data-ta="மாதிரி நிச்சயமற்ற தன்மை" data-hi="मॉडल अनिश्चितता और फ़ॉलबैक">Model Uncertainty & Fallbacks</h5>
+                <p data-en="Confidence levels indicate decision robustness. In offline environments, validated agronomic coefficients are applied transparently." data-ta="ஆஃப்லைன் பயன்முறையில் விவசாய குணகங்கள் வெளிப்படையாகப் பயன்படுத்தப்படுகின்றன." data-hi="ऑफ़लाइन वातावरण में, मान्य कृषि गुणांक पारदर्शी रूप से लागू होते हैं।">Confidence levels indicate decision robustness. In offline environments, validated agronomic coefficients are applied transparently.</p>
+            </div>
+            <div class="ethics-item">
+                <h5 data-en="Farmer Data Privacy" data-ta="விவசாயி தரவு தனியுரிமை" data-hi="किसान डेटा गोपनीयता">Farmer Data Privacy</h5>
+                <p data-en="All farm plot configurations and inputs are preserved locally in browser LocalStorage. No confidential farm data is uploaded or sold." data-ta="அனைத்து நில தகவல்களும் உங்கள் உலாவியில் மட்டுமே சேமிக்கப்படும்." data-hi="सभी खेत की जानकारी आपके ब्राउज़र के लोकलस्टोरेज में सुरक्षित रहती है।">All farm plot configurations and inputs are preserved locally in browser LocalStorage. No confidential farm data is uploaded or sold.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer role="contentinfo">
+        <p>&copy; 2026 Harvest Timing & Market Option Simulator. Offline-First Responsible AI System.</p>
+    </footer>
+</div>
+
+<!-- Local Application JavaScript Logic -->
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

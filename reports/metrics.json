@@ -1,0 +1,19 @@
+{
+  "dataset_size": 1000,
+  "baseline_value": 8861.41,
+  "proposed_value": 11006.94,
+  "oracle_value": 11006.94,
+  "value_improvement_absolute": 2145.53,
+  "value_improvement_pct": 24.21,
+  "baseline_spoilage": 40.46,
+  "proposed_spoilage": 36.96,
+  "spoilage_reduction_pct": 8.65,
+  "baseline_accuracy": 51.5,
+  "proposed_accuracy": 100.0,
+  "edge_case_pass_rate": 100.0,
+  "cases_proposed_better": 484,
+  "cases_baseline_better": 0,
+  "cases_equal": 516,
+  "sensitivity_decision_changes": 852,
+  "timestamp": "2026-09-29T14:50:37.630927"
+}
